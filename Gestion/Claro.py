@@ -8,7 +8,6 @@ from time import sleep
 import base64
 import requests
 import json
-import shutil
 
 
 class ComponenteClaro:
@@ -87,25 +86,38 @@ class ComponenteClaro:
         except:
             print("NO EXISTE ITEMS A DESCARGAR")
         else:
-            for row in range(9):  # 9 filas iniciales
-                estado_vencimiento = driver.find_element_by_xpath(
-                    "//*[@id='paginaFacturacion']"
-                    "/section/div[2]/div/div[3]/div/div/div[1]/div[2]/div[" + str(row + 1) + "]/div/div[6]/div").text
+            row = 1
+            items = driver.find_elements_by_class_name('item')
+            for item in items:  # 9 filas iniciales
+                if search('Vence.*\n', item.text):  # Descargar los documentos que contenga el 'Vence'
+                    vencimiento = search('Vence.*\n', item.text).group()
+                    sleep(2)
+                    try:
+                        # Clic de descarga
+                        driver.find_element_by_xpath("//*[@id='paginaFacturacion']/section/div[2]/div/div[3]/div/div/"
+                                                     "div[1]/div[2]/div[" + str(row) + "]/div/div[5]/span").click()
 
-                if search('Vence', estado_vencimiento):  # Descargar los documentos que contenga el 'Vence'
-                    print("DESCARGA PDF: ", estado_vencimiento)
+                        # Cerrar el modal
+                        modal = driver.find_element_by_xpath('//*[@id="menu-superior"]/div[3]/app-facturacion/'
+                                                             'app-modal-doc-no-encontrado/div/div/div')
+                        modal.find_element_by_xpath('//*[@id="menu-superior"]/div[3]/app-facturacion/'
+                                                    'app-modal-doc-no-encontrado/div/div/div/button').click()
+                    except:
+                        # Se puede descargar el PDF ya que no existe el modal
+                        print("DESCARGA PDF: ", vencimiento.replace('\n', ''))
+                    else:
+                        # El modal existe lo cual no se puede descargar el pdf
+                        print("NO DESCARGÓ PDF: ", vencimiento.replace('\n', ''))
 
-                    # Clic de descarga
-                    driver.find_element_by_xpath("//*[@id='paginaFacturacion']/section/div[2]/div/div[3]/div/div/"
-                                                 "div[1]/div[2]/div[" + str(row + 1) + "]/div/div[5]/span").click()
                     sleep(5)
+
+                row = row + 1
 
     @staticmethod
     def __get_captcha(driver):
         try:
             with open('secret.json', mode="r") as f:
                 secret = json.loads(f.read())
-            print(secret['KEY'])
         except Exception as ex:
             print(ex)
         else:
@@ -128,8 +140,8 @@ class ComponenteClaro:
             response_code = response.json()
 
             if response_code['status'] == 1:
-                print("Esperando 12 sec. desencriptar el captcha")
-                sleep(12)
+                # print("Esperando 15 sec. para desencriptar el captcha\n")
+                sleep(15)
 
                 # CONSULTADO PARA OBTENER EL TEXTO DE LA IMAGEN
                 params_token = {"key": secret['KEY'],
@@ -148,18 +160,3 @@ class ComponenteClaro:
 
             else:
                 raise Exception(response_code["request"])
-
-    def __mover_pdf(self):
-        print("MOVER PDFs")
-        sleep(10)
-        ruta_pdf = self.__directorio.get_pdf()
-        for pdf in ruta_pdf.iterdir():
-            if search('^.[Pp][Dd][Ff]$', pdf.suffix):
-                shutil.move(str(pdf), str(self.__directorio.get_cliente()))
-
-        # Click ordenamiento
-        # WebDriverWait(self.__driver, 20).until(
-        #    ec.element_to_be_clickable((By.XPATH, "//*[@id='paginaFacturacion']/section/div[2]/div/div[3]"
-        #                                          "/div/div/div[1]/div[1]/div[1]/div/img"))).click()
-        # self.__driver.find_element_by_xpath(
-        #    "//*[@id='paginaFacturacion']/section/div[2]/div/div[3]/div/div/div[1]/div[1]/div[1]/div/img").click()
