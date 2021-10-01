@@ -37,7 +37,7 @@ class ComponenteClaro:
                        'NWzuuc6WabqmjjsMwGEJKUXLjLCsdPym57BQk7yQ0VYLXWdmvLU27A22zk4A!/dz/d5/L2dBISEvZ0FBIS9nQSEh/')
 
             # Validar el formulario
-            WebDriverWait(driver, 60).until(ec.presence_of_element_located((By.XPATH, "//*[@id='formLogin']")))
+            WebDriverWait(driver, 70).until(ec.presence_of_element_located((By.XPATH, "//*[@id='formLogin']")))
 
             # Seleccionar la opcion RUC en el desplegable
             driver.find_element_by_xpath("//*[@id='formLogin']/div[2]/div").click()
@@ -88,7 +88,7 @@ class ComponenteClaro:
         else:
             row = 1
             items = driver.find_elements_by_class_name('item')
-            for item in items:  # 9 filas iniciales
+            for item in items:
                 if search('Vence.*\n', item.text):  # Descargar los documentos que contenga el 'Vence'
                     vencimiento = search('Vence.*\n', item.text).group()
                     sleep(2)
@@ -97,7 +97,7 @@ class ComponenteClaro:
                         driver.find_element_by_xpath("//*[@id='paginaFacturacion']/section/div[2]/div/div[3]/div/div/"
                                                      "div[1]/div[2]/div[" + str(row) + "]/div/div[5]/span").click()
 
-                        # Cerrar el modal
+                        # Cerrar el modal que indica que el PDF esta dañado
                         modal = driver.find_element_by_xpath('//*[@id="menu-superior"]/div[3]/app-facturacion/'
                                                              'app-modal-doc-no-encontrado/div/div/div')
                         modal.find_element_by_xpath('//*[@id="menu-superior"]/div[3]/app-facturacion/'
@@ -116,7 +116,7 @@ class ComponenteClaro:
     @staticmethod
     def __get_captcha(driver):
         try:
-            with open('secret.json', mode="r") as f:
+            with open('secret.json', mode="r") as f:  # Obtener el API KEY del 2captcha
                 secret = json.loads(f.read())
         except Exception as ex:
             print(ex)
@@ -124,11 +124,11 @@ class ComponenteClaro:
             # Obtener la imagen del catpcha
             driver.save_screenshot("screenshot.png")
             img = Image.open('screenshot.png')
-            img_recortada = img.crop((910, 388, 1030, 465))
+            img_recortada = img.crop((910, 388, 1030, 465))  # Coordenadas para cortar el screen de la pantalla
             img_recortada.save("recorte.png")
 
             with open("recorte.png", "rb") as image_file:
-                encoded_string = base64.b64encode(image_file.read())
+                encoded_string = base64.b64encode(image_file.read())  # Codificar la imagen recortada
 
             # ENVIANDO IMAGEN A LA API PARA OBTENER EL CODIGO DEL SERVIDOR
             params_id = {"key": secret['KEY'],
@@ -153,7 +153,7 @@ class ComponenteClaro:
                 response_captcha = response.json()
 
                 if response_captcha["status"] == 1:
-                    return response_captcha["request"]
+                    return response_captcha["request"]  # Enviar el texto del captcha
 
                 else:
                     raise Exception(response_captcha["request"])
