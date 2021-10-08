@@ -36,6 +36,9 @@ class ComponenteClaro:
                        'KYID2boFRHFISTNBEn8LhH8DGGr-MhaPPHghF13G9GDehGVG0tnvHswlBnNIX8OOGD0yUMnu-a9WZORfAWn7hLW-'
                        'NWzuuc6WabqmjjsMwGEJKUXLjLCsdPym57BQk7yQ0VYLXWdmvLU27A22zk4A!/dz/d5/L2dBISEvZ0FBIS9nQSEh/')
 
+            # Esperar la visibilidad de la imagen del catpcha
+            WebDriverWait(driver, 70).until(ec.visibility_of_element_located((By.XPATH, "//*[@id='captcha_image']")))
+
             # Validar el formulario
             WebDriverWait(driver, 70).until(ec.presence_of_element_located((By.XPATH, "//*[@id='formLogin']")))
 
@@ -88,30 +91,66 @@ class ComponenteClaro:
         else:
             row = 1
             items = driver.find_elements_by_class_name('item')
-            for item in items:
+            for item in items:  # Iterar la tabla
                 if search('Vence.*\n', item.text):  # Descargar los documentos que contenga el 'Vence'
                     vencimiento = search('Vence.*\n', item.text).group()
-                    sleep(2)
+                    sleep(1)
                     try:
-                        # Clic de descarga
+                        # Clic PDF
                         driver.find_element_by_xpath("//*[@id='paginaFacturacion']/section/div[2]/div/div[3]/div/div/"
                                                      "div[1]/div[2]/div[" + str(row) + "]/div/div[5]/span").click()
 
-                        # Cerrar el modal que indica que el PDF esta dañado
-                        modal = driver.find_element_by_xpath('//*[@id="menu-superior"]/div[3]/app-facturacion/'
-                                                             'app-modal-doc-no-encontrado/div/div/div')
-                        modal.find_element_by_xpath('//*[@id="menu-superior"]/div[3]/app-facturacion/'
-                                                    'app-modal-doc-no-encontrado/div/div/div/button').click()
-                    except:
-                        # Se puede descargar el PDF ya que no existe el modal
-                        print("DESCARGA PDF: ", vencimiento.replace('\n', ''))
+                        ComponenteClaro.__verificar_pdf_no_descargado(driver)
+                    except Exception as ex:
+                        print(vencimiento.replace('\n', ''), ": ", ex)
                     else:
-                        # El modal existe lo cual no se puede descargar el pdf
-                        print("NO DESCARGÓ PDF: ", vencimiento.replace('\n', ''))
-
-                    sleep(5)
+                        print(vencimiento.replace('\n', ''), ": OK!")
 
                 row = row + 1
+
+    @staticmethod
+    def __verificar_pdf_no_descargado(driver):
+        mensaje = ''
+        esperando_carga_pagina = True
+        while esperando_carga_pagina:
+            try:
+                WebDriverWait(driver, 2).until(
+                    ec.presence_of_element_located((By.XPATH, '//*[@id="paginaFacturacion"]/app-loading-general/div')))
+            except:
+                esperando_carga_pagina = False
+
+        # PDF NO ENCONTRADO
+        try:
+            modal = WebDriverWait(driver, 1).until(
+                ec.presence_of_element_located((By.XPATH,
+                                                '//*[@id="menu-superior"]/div[3]/app-facturacion/'
+                                                'app-modal-doc-no-encontrado/div/div/div')))
+            mensaje = search('.*\n', modal.text).group()
+            modal.find_element_by_xpath(
+                '//*[@id="menu-superior"]/div[3]/app-facturacion/'
+                'app-modal-doc-no-encontrado/div/div/div/button').click()
+            error_pdf = True
+        except:
+            error_pdf = False
+
+        if not error_pdf:  # Si ya abrio la
+            # PDF NO GENERADO
+            try:
+                # Ventana donde el mensaje muestra que aparecera a las 48 horas
+                modal = WebDriverWait(driver, 1).until(
+                    ec.presence_of_element_located((By.XPATH,
+                                                    '//*[@id="menu-superior"]/div[3]/'
+                                                    'app-facturacion/app-modal-error-doc/div/div/div')))
+                mensaje = search('.*\n', modal.text).group()
+                mensaje = mensaje + ". Tardara 48 horas en realizarlo."
+                modal.find_element_by_xpath(
+                    '//*[@id="menu-superior"]/div[3]/app-facturacion/app-modal-error-doc/div/div/div/button').click()
+                error_pdf = True
+            except:
+                error_pdf = False
+
+        if error_pdf:
+            raise Exception(mensaje.strip().replace("\n", ''))
 
     @staticmethod
     def __get_captcha(driver):
