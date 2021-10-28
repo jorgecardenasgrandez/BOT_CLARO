@@ -1,5 +1,6 @@
 from pathlib import Path
 import pandas as pd
+import datetime
 
 
 class ComponenteDirectorio:
@@ -16,6 +17,7 @@ class ComponenteDirectorio:
         self.__cliente_dir = Path()
 
         self.__data = []
+        self.__anio = datetime.datetime.now().date().year
 
     def get_nombre_chromedriver(self):
         return self.__ruta_chromedriver.name
@@ -27,7 +29,7 @@ class ComponenteDirectorio:
         return self.__cliente_dir
 
     def set_descarga_dir(self, nombre_cliente):
-        self.__cliente_dir = self.__pdf.joinpath(nombre_cliente)
+        self.__cliente_dir = self.__pdf.joinpath(nombre_cliente, str(self.__anio))
 
     def __set_data(self, row):
         self.__data.append(row)
@@ -37,7 +39,8 @@ class ComponenteDirectorio:
 
     def __crear_carpeta(self, nombre_clientes):
         for nombre in nombre_clientes:
-            cliente = self.__pdf.joinpath(nombre)
+            self.set_descarga_dir(nombre)
+            cliente = self.get_descarga_dir()
             cliente.mkdir(parents=True, exist_ok=True)
 
     def validar_existencia_archivos(self):

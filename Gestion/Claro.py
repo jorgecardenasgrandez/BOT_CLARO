@@ -8,6 +8,7 @@ from time import sleep
 import base64
 import requests
 import json
+import shutil
 
 
 class ComponenteClaro:
@@ -23,6 +24,8 @@ class ComponenteClaro:
 
         except Exception as ex:
             print(ex)
+        finally:
+            print("\n***************** TERMINO LA EJECUCION *****************")
 
     def __extraer_info_web(self, cliente):
         # Directorio del cliente para descargar los pdfs
@@ -49,9 +52,9 @@ class ComponenteClaro:
             driver.find_element_by_id("nroDoc").send_keys(cliente['RUC'])
             driver.find_element_by_id("Password").send_keys(cliente['PASS'])
 
-            # sleep(30)
-            captcha = ComponenteClaro.__get_captcha(driver)
-            driver.find_element_by_xpath("//*[@id='captchaId']").send_keys(captcha)
+            sleep(10)
+            # captcha = ComponenteClaro.__get_captcha(driver)
+            # driver.find_element_by_xpath("//*[@id='captchaId']").send_keys(captcha)
             driver.find_element_by_id("btnIngresar").click()
         except Exception as ex:
             print(ex)
@@ -71,12 +74,11 @@ class ComponenteClaro:
 
             driver.find_element_by_xpath("//*[@id='Pagfacturacion']/a").click()
 
-            ComponenteClaro.__descargar_pdf(driver)
+            self.__descargar_pdf(driver)
         finally:
             driver.close()
 
-    @staticmethod
-    def __descargar_pdf(driver):
+    def __descargar_pdf(self, driver):
         # Verificar carga de datos en la tabla
         WebDriverWait(driver, 30).until(
             ec.presence_of_element_located((By.XPATH, "//*[@id='paginaFacturacion']"
@@ -94,16 +96,21 @@ class ComponenteClaro:
             for item in items:  # Iterar la tabla
                 if search('Vence.*\n', item.text):  # Descargar los documentos que contenga el 'Vence'
                     vencimiento = search('Vence.*\n', item.text).group()
+
+                    dir_cliente_mes = self.__crear_carpeta_mes(vencimiento)
                     sleep(1)
                     try:
                         # Clic PDF
-                        driver.find_element_by_xpath("//*[@id='paginaFacturacion']/section/div[2]/div/div[3]/div/div/"
-                                                     "div[1]/div[2]/div[" + str(row) + "]/div/div[5]/span").click()
-
+                        valor_pdf = driver.\
+                            find_element_by_xpath("//*[@id='paginaFacturacion']"
+                                                  "/section/div[2]/div/div[3]/div/div/div[1]/div[2]/"
+                                                  "div[" + str(row) + "]/div/div[5]/span")
+                        valor_pdf.click()
                         ComponenteClaro.__verificar_pdf_no_descargado(driver)
                     except Exception as ex:
                         print(vencimiento.replace('\n', ''), ": ", ex)
                     else:
+                        ComponenteClaro.__mover_pdf(dir_cliente_mes, valor_pdf.text)
                         print(vencimiento.replace('\n', ''), ": OK!")
 
                 row = row + 1
@@ -151,6 +158,48 @@ class ComponenteClaro:
 
         if error_pdf:
             raise Exception(mensaje.strip().replace("\n", ''))
+
+    @staticmethod
+    def __mover_pdf(dir_cliente_mes, nombre_pdf):
+        dir_anio = dir_cliente_mes.parent
+        for pdf in dir_anio.iterdir():
+            if search('.[Pp][Dd][Ff]', pdf.suffix):
+                shutil.move(str(pdf), str(dir_cliente_mes.joinpath(nombre_pdf + '.pdf')))
+                break
+
+    def __crear_carpeta_mes(self, vencimiento):
+        mes = ComponenteClaro.get_mes(vencimiento)
+        dir_cliente_mes = self.__directorio.get_descarga_dir().joinpath(mes)
+        dir_cliente_mes.mkdir(parents=True, exist_ok=True)
+        return dir_cliente_mes
+
+    @staticmethod
+    def get_mes(vencimiento):
+        mes = search('[A-Z]{3}', vencimiento).group()
+        if 'ENE' == mes:
+            return 'Enero'
+        elif 'FEB' == mes:
+            return 'Febrero'
+        elif 'MAR' == mes:
+            return 'Marzo'
+        elif 'ABR' == mes:
+            return 'Abril'
+        elif 'MAY' == mes:
+            return 'Mayo'
+        elif 'JUN' == mes:
+            return 'Junio'
+        elif 'JUL' == mes:
+            return 'Julio'
+        elif 'AGO' == mes:
+            return 'Agosto'
+        elif 'SET' == mes:
+            return 'Setiembre'
+        elif 'OCT' == mes:
+            return 'Octubre'
+        elif 'NOV' == mes:
+            return 'Noviembre'
+        else:
+            return 'Diciembre'
 
     @staticmethod
     def __get_captcha(driver):
