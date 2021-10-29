@@ -14,7 +14,7 @@ class ComponenteDriver:
         prefs = {"download.prompt_for_download": False,
                  "plugins.always_open_pdf_externally": True,
                  "profile.default_content_setting_values.automatic_downloads": 1,
-                 'download.default_directory': str(directorio.get_descarga_dir()),
+                 'download.default_directory': str(directorio.get_descarga_dir().parent),
                  "credentials_enable_service": False,
                  "profile.password_manager_enabled": False}
 

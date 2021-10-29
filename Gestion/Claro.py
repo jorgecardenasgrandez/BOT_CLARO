@@ -94,10 +94,8 @@ class ComponenteClaro:
             row = 1
             items = driver.find_elements_by_class_name('item')
             for item in items:  # Iterar la tabla
-                if search('Vence.*\n', item.text):  # Descargar los documentos que contenga el 'Vence'
-                    vencimiento = search('Vence.*\n', item.text).group()
-
-                    dir_cliente_mes = self.__crear_carpeta_mes(vencimiento)
+                fecha_emision = search(r'\d{2}/[A-Z]{3}/\d{2}', item.text).group()
+                if self.__verificar_mes_actual(fecha_emision):  # Verificar que se descarguen los pdfs del mes actual
                     sleep(1)
                     try:
                         # Clic PDF
@@ -108,10 +106,10 @@ class ComponenteClaro:
                         valor_pdf.click()
                         ComponenteClaro.__verificar_pdf_no_descargado(driver)
                     except Exception as ex:
-                        print(vencimiento.replace('\n', ''), ": ", ex)
+                        print('FECHA EMISION {} : {}'.format(fecha_emision, ex))
                     else:
-                        ComponenteClaro.__mover_pdf(dir_cliente_mes, valor_pdf.text)
-                        print(vencimiento.replace('\n', ''), ": OK!")
+                        self.__mover_pdf(valor_pdf.text)
+                        print('FECHA EMISION {} : OK!'.format(fecha_emision))
 
                 row = row + 1
 
@@ -159,47 +157,20 @@ class ComponenteClaro:
         if error_pdf:
             raise Exception(mensaje.strip().replace("\n", ''))
 
-    @staticmethod
-    def __mover_pdf(dir_cliente_mes, nombre_pdf):
-        dir_anio = dir_cliente_mes.parent
+    def __mover_pdf(self, nuevo_nombre_pdf):
+        dir_mes = self.__directorio.get_descarga_dir()
+        dir_anio = dir_mes.parent
         for pdf in dir_anio.iterdir():
             if search('.[Pp][Dd][Ff]', pdf.suffix):
-                shutil.move(str(pdf), str(dir_cliente_mes.joinpath(nombre_pdf + '.pdf')))
+                shutil.move(str(pdf), str(dir_mes.joinpath(nuevo_nombre_pdf + '.pdf')))
                 break
 
-    def __crear_carpeta_mes(self, vencimiento):
-        mes = ComponenteClaro.get_mes(vencimiento)
-        dir_cliente_mes = self.__directorio.get_descarga_dir().joinpath(mes)
-        dir_cliente_mes.mkdir(parents=True, exist_ok=True)
-        return dir_cliente_mes
-
-    @staticmethod
-    def get_mes(vencimiento):
-        mes = search('[A-Z]{3}', vencimiento).group()
-        if 'ENE' == mes:
-            return 'Enero'
-        elif 'FEB' == mes:
-            return 'Febrero'
-        elif 'MAR' == mes:
-            return 'Marzo'
-        elif 'ABR' == mes:
-            return 'Abril'
-        elif 'MAY' == mes:
-            return 'Mayo'
-        elif 'JUN' == mes:
-            return 'Junio'
-        elif 'JUL' == mes:
-            return 'Julio'
-        elif 'AGO' == mes:
-            return 'Agosto'
-        elif 'SET' == mes:
-            return 'Setiembre'
-        elif 'OCT' == mes:
-            return 'Octubre'
-        elif 'NOV' == mes:
-            return 'Noviembre'
-        else:
-            return 'Diciembre'
+    def __verificar_mes_actual(self, fecha_emision):
+        mes_actual = self.__directorio.get_descarga_dir().name
+        mes_claro = search('[A-Z]{3}', fecha_emision).group()
+        if mes_actual == mes_claro:
+            return True
+        return False
 
     @staticmethod
     def __get_captcha(driver):
