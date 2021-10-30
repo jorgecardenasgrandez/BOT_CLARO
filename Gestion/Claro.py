@@ -19,7 +19,7 @@ class ComponenteClaro:
         try:
             clientes = self.__directorio.get_data()
             for cliente in clientes:
-                print("***************** ", cliente, " *****************")
+                print("\n***************** ", cliente, " *****************")
                 self.__extraer_info_web(cliente)
 
         except Exception as ex:
@@ -74,44 +74,87 @@ class ComponenteClaro:
 
             driver.find_element_by_xpath("//*[@id='Pagfacturacion']/a").click()
 
-            self.__descargar_pdf(driver)
+            self.__pendientes_pago(driver, 'PENDIENTES_DE_PAGO')
+            self.__pagados(driver, 'PAGADOS')
         finally:
             driver.close()
 
-    def __descargar_pdf(self, driver):
-        # Verificar carga de datos en la tabla
-        WebDriverWait(driver, 30).until(
-            ec.presence_of_element_located((By.XPATH, "//*[@id='paginaFacturacion']"
-                                                      "/section/div[2]/div/div[3]/div/div/div[1]/div[2]")))
+    def __pendientes_pago(self, driver, facturacion):
+        print(facturacion)
         try:
-            # Verificar la existencia de items en la tabla
-            WebDriverWait(driver, 10).until(
+            # Verificar carga de datos en la tabla
+            WebDriverWait(driver, 30).until(
+                ec.presence_of_element_located((By.XPATH, "//*[@id='paginaFacturacion']"
+                                                          "/section/div[2]/div/div[3]/div/div/div[1]/div[2]")))
+            # Verificar que existe al menos 1 item en la tabla
+            WebDriverWait(driver, 5).until(
                 ec.presence_of_element_located((By.XPATH, "//*[@id='paginaFacturacion']"
                                                           "/section/div[2]/div/div[3]/div/div/div[1]/div[2]/div[1]")))
         except:
-            print("NO EXISTE ITEMS A DESCARGAR")
+            print("   NO EXISTE ITEMS EN LA TABLA A DESCARGAR")
         else:
-            row = 1
-            items = driver.find_elements_by_class_name('item')
-            for item in items:  # Iterar la tabla
-                fecha_emision = search(r'\d{2}/[A-Z]{3}/\d{2}', item.text).group()
-                if self.__verificar_mes_actual(fecha_emision):  # Verificar que se descarguen los pdfs del mes actual
-                    sleep(1)
-                    try:
-                        # Clic PDF
-                        valor_pdf = driver.\
+            self.__descargar_pdf(driver, facturacion)
+
+    def __pagados(self, driver, facturacion):
+        print(facturacion)
+        try:
+            # Validar existencia de la seccion de pendientes y pagados
+            WebDriverWait(driver, 30).until(
+                ec.presence_of_element_located(
+                    (By.XPATH,
+                     "//*[@id='contenido-tabs']")))
+            # Click al modulo de pagados
+            driver.find_element_by_xpath('//*[@id="pagados"]').click()
+
+            # Verificar que existe al menos 1 item en la tabla
+            WebDriverWait(driver, 5).until(
+                ec.presence_of_element_located((By.XPATH, "//*[@id='paginaFacturacion']"
+                                                          "/section/div[2]/div/div/div/div/div[1]/div[2]/div[1]")))
+        except:
+            print("   NO EXISTE ITEMS EN LA TABLA A DESCARGAR")
+        else:
+            # Click para ordenar los items
+            img = driver.find_element_by_xpath('//*[@id="paginaFacturacion"]'
+                                               '/section/div[2]/div/div/div/div/div[1]/div[1]/div[2]/div/img')
+            sleep(1)
+            img.click()
+            sleep(2)
+            self.__descargar_pdf(driver, facturacion)
+
+    def __descargar_pdf(self, driver, facturacion):
+        row = 1
+        items = driver.find_elements_by_class_name('item')
+        doc_mes = 0
+        for item in items:  # Iterar la tabla
+            fecha_emision = search(r'\d{2}/[A-Z]{3}/\d{2}', item.text).group()
+            if self.__verificar_mes_actual(fecha_emision):  # Verificar que se descarguen los pdfs del mes actual
+                doc_mes += 1
+                sleep(1)
+                try:
+                    # Clic PDF
+                    if facturacion == 'PENDIENTES_DE_PAGO':
+                        valor_pdf = driver. \
                             find_element_by_xpath("//*[@id='paginaFacturacion']"
                                                   "/section/div[2]/div/div[3]/div/div/div[1]/div[2]/"
                                                   "div[" + str(row) + "]/div/div[5]/span")
-                        valor_pdf.click()
-                        ComponenteClaro.__verificar_pdf_no_descargado(driver)
-                    except Exception as ex:
-                        print('FECHA EMISION {} : {}'.format(fecha_emision, ex))
                     else:
-                        self.__mover_pdf(valor_pdf.text)
-                        print('FECHA EMISION {} : OK!'.format(fecha_emision))
+                        valor_pdf = driver. \
+                            find_element_by_xpath("//*[@id='paginaFacturacion']"
+                                                  "/section/div[2]/div/div/div/div/div[1]/div[2]/"
+                                                  "div[" + str(row) + "]/div/div[6]/span")
 
-                row = row + 1
+                    valor_pdf.click()
+                    ComponenteClaro.__verificar_pdf_no_descargado(driver)
+                except Exception as ex:
+                    print('   FECHA EMISION {} : {}'.format(fecha_emision, ex))
+                else:
+                    self.__mover_pdf(valor_pdf.text, facturacion)
+                    print('   FECHA EMISION {} : OK!'.format(fecha_emision))
+
+            row = row + 1
+
+        if not (doc_mes > 0):
+            print('   NO SE PRESENTA DOCUMENTOS DEL MES ACTUAL')
 
     @staticmethod
     def __verificar_pdf_no_descargado(driver):
@@ -157,12 +200,12 @@ class ComponenteClaro:
         if error_pdf:
             raise Exception(mensaje.strip().replace("\n", ''))
 
-    def __mover_pdf(self, nuevo_nombre_pdf):
+    def __mover_pdf(self, nuevo_nombre_pdf, facturacion):
         dir_mes = self.__directorio.get_descarga_dir()
         dir_anio = dir_mes.parent
         for pdf in dir_anio.iterdir():
             if search('.[Pp][Dd][Ff]', pdf.suffix):
-                shutil.move(str(pdf), str(dir_mes.joinpath(nuevo_nombre_pdf + '.pdf')))
+                shutil.move(str(pdf), str(dir_mes.joinpath(facturacion + '_' + nuevo_nombre_pdf + '.pdf')))
                 break
 
     def __verificar_mes_actual(self, fecha_emision):
